@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Get Web Page Source Code</string>
+    <string name="loading">Getting source code...</string>
+    <string name="no_url">No URL provided</string>
+    <string name="no_connection">No internet connection</string>
+    <string name="invalid_url">Invalid URL</string>
+    <string name="no_response">No response</string>
+    <string-array name="http_array">
+        <item name="http">http://</item>
+        <item name="https">https://</item>
+    </string-array>
+</resources>
