@@ -1,122 +1,109 @@
 package com.android.s9110209;
 
-import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
-import android.os.Bundle;
-import android.view.View;
-import android.view.inputmethod.InputMethodManager;
-import android.webkit.URLUtil;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.EditText;
-import android.widget.Spinner;
-import android.widget.TextView;
-import android.widget.Toast;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.loader.app.LoaderManager;
 import androidx.loader.content.Loader;
 
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.Bundle;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
 
-public class MainActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<String>, AdapterView.OnItemSelectedListener {
+public class MainActivity extends AppCompatActivity
+        implements LoaderManager.LoaderCallbacks<String>{
 
-    private String spinnerValue;
-    private EditText uRLEditText;
-    private TextView sourceCodeTextView;
-    private static final String QUERY = "stringQuery";
-    private static final String PROTOCOL = "transferProtocol";
+    private EditText urlInput;
+
+    private Spinner spinner;
+    private String protocol;
+    private TextView sourceCode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        uRLEditText = findViewById(R.id.url_EditText);
-        sourceCodeTextView = findViewById(R.id.page_source_code);
 
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this, R.array.http_array, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        Spinner spinner = findViewById(R.id.http_spinner);
-        if (spinner != null) {
-            spinner.setOnItemSelectedListener(this);
-            spinner.setAdapter(adapter);
-        }
-
+        urlInput = findViewById(R.id.urlInput);
+        spinner = findViewById(R.id.spinner);
+        sourceCode = findViewById(R.id.source_code);
         if (getSupportLoaderManager().getLoader(0) != null) {
             getSupportLoaderManager().initLoader(0, null, this);
         }
     }
+    public void searchBooks(View view) {
+        // Get the search string from the input field.
+        String queryString = urlInput.getText().toString();
+        protocol = spinner.getSelectedItem().toString();
+        protocol = protocol.substring(0,protocol.length()-3);
 
+        // Hide the keyboard when the button is pushed.
+        InputMethodManager inputManager = (InputMethodManager)
+                getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (inputManager != null) {
+            inputManager.hideSoftInputFromWindow(view.getWindowToken(),
+                    InputMethodManager.HIDE_NOT_ALWAYS);
+        }
+
+        // Check the status of the network connection.
+        ConnectivityManager connMgr = (ConnectivityManager)
+                getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo = null;
+        if (connMgr != null) {
+            networkInfo = connMgr.getActiveNetworkInfo();
+        }
+
+        // If the network is available, connected, and the search field
+        // is not empty, start a BookLoader AsyncTask.
+        if (networkInfo != null && networkInfo.isConnected()
+                && queryString.length() != 0) {
+
+            Bundle queryBundle = new Bundle();
+            queryBundle.putString("queryString", queryString);
+            getSupportLoaderManager().restartLoader(0, queryBundle, this);
+
+        }
+        // Otherwise update the TextView to tell the user there is no
+        // connection, or no search term.
+        else {
+            if (queryString.length() == 0) {
+                Toast.makeText(this, "Invalid URL", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Please check your network connection and try again.", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
     @NonNull
     @Override
-    public Loader<String> onCreateLoader(int i, @Nullable Bundle bundle) {
+    public Loader<String> onCreateLoader(int id, @Nullable Bundle args) {
         String queryString = "";
-        String transferProtocol = "";
-        if (bundle != null) {
-            queryString = bundle.getString(QUERY);
-            transferProtocol = bundle.getString(PROTOCOL);
+
+        if (args != null) {
+            queryString = args.getString("queryString");
         }
-        return new com.android.s9110209.SourceLoader(this, queryString, transferProtocol);
+
+        return new PageSourceLoader(this, queryString,protocol);
     }
 
     @Override
-    public void onLoadFinished(@NonNull Loader<String> loader, String s) {
-        try {
-            sourceCodeTextView.setText(s);
-        } catch (Exception e) {
-            e.printStackTrace();
-            sourceCodeTextView.setText(R.string.no_response);
+    public void onLoadFinished(@NonNull Loader<String> loader, String data) {
+
+        if (data==null)
+            sourceCode.setText("No response");
+        else {
+            sourceCode.setText(data);
         }
     }
 
     @Override
     public void onLoaderReset(@NonNull Loader<String> loader) {
-    }
-
-    @Override
-    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-        spinnerValue = parent.getItemAtPosition(position).toString();
-    }
-
-    @Override
-    public void onNothingSelected(AdapterView<?> parent) {
-        String[] values = getResources().getStringArray(R.array.http_array);
-        spinnerValue = values[0];
-    }
-
-    public void getSourceCode(View view) {
-        InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (inputMethodManager != null) {
-            inputMethodManager.hideSoftInputFromWindow(view.getWindowToken(), InputMethodManager.HIDE_NOT_ALWAYS);
-        }
-
-        String queryString = uRLEditText.getText().toString();
-
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo networkInfo = null;
-        if (connectivityManager != null) {
-            networkInfo = connectivityManager.getActiveNetworkInfo();
-        }
-
-        if (networkInfo != null && networkInfo.isConnected() && (queryString.length() != 0)) {
-            Bundle queryBundle = new Bundle();
-            queryBundle.putString(QUERY, queryString);
-            queryBundle.putString(PROTOCOL, spinnerValue);
-            getSupportLoaderManager().restartLoader(0, queryBundle, this);
-            sourceCodeTextView.setText(R.string.loading);
-        } else {
-            if (queryString.length() == 0) {
-                Toast.makeText(this, R.string.no_url, Toast.LENGTH_LONG).show();
-            } else if (!URLUtil.isValidUrl(queryString)) {
-                Toast.makeText(this, R.string.invalid_url, Toast.LENGTH_LONG).show();
-            } else {
-                Toast.makeText(this, R.string.no_connection, Toast.LENGTH_LONG).show();
-            }
-        }
 
     }
-
 }

@@ -1,6 +1,5 @@
 package com.android.s9110209;
 
-import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
 
@@ -13,58 +12,89 @@ import java.net.URL;
 
 public class NetworkUtils {
     private static final String LOG_TAG = NetworkUtils.class.getSimpleName();
-    private static final String HTTP = "http";
-    private static final String HTTPS = "https";
 
-    static String getSourceCode(Context context, String queryString, String transferProtocol) {
-        HttpURLConnection httpURLConnection = null;
-        BufferedReader bufferedReader = null;
-        String htmlSourceCode = null;
-        String[] protocol = context.getResources().getStringArray(R.array.http_array);
+    // Constants for the various components of the Books API request.
+    //
+    // Base endpoint URL for the Books API.
+
+
+
+    /**
+     * Static method to make the actual query to the Books API.
+     *
+     * @param queryString the query string.
+     * @return the JSON response string from the query.
+     */
+    static String getBookInfo(String queryString, String protocol) {
+
+        // Set up variables for the try block that need to be closed in the
+        // finally block.
+        HttpURLConnection urlConnection = null;
+        BufferedReader reader = null;
+        String pageSource = null;
+
         try {
-            Uri builder;
-            if (transferProtocol.equals(protocol[0])) {
-                builder = Uri.parse(queryString).buildUpon()
-                        .scheme(HTTP)
-                        .build();
-            } else {
-                builder = Uri.parse(queryString).buildUpon()
-                        .scheme(HTTPS)
-                        .build();
+            // Build the full query URI, limiting results to 10 items and
+            // printed books.
+            Uri builtURI = Uri.parse(queryString).buildUpon()
+                    .scheme(protocol)
+                    .build();
+
+            // Convert the URI to a URL.
+            URL requestURL = new URL(builtURI.toString());
+            Log.d("URL",builtURI.toString());
+            // Open the network connection.
+            urlConnection = (HttpURLConnection) requestURL.openConnection();
+            urlConnection.setRequestMethod("GET");
+            urlConnection.connect();
+
+            // Get the InputStream.
+            InputStream inputStream = urlConnection.getInputStream();
+
+            // Create a buffered reader from that input stream.
+            reader = new BufferedReader(new InputStreamReader(inputStream));
+
+            // Use a StringBuilder to hold the incoming response.
+            StringBuilder builder = new StringBuilder();
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // Add the current line to the string.
+                builder.append(line);
+
+                // Since this is JSON, adding a newline isn't necessary (it won't
+                // affect parsing) but it does make debugging a *lot* easier
+                // if you print out the completed buffer for debugging.
+                builder.append("\n");
             }
 
-            URL requestURL = new URL(builder.toString());
-            httpURLConnection = (HttpURLConnection) requestURL.openConnection();
-            httpURLConnection.setRequestMethod("GET");
-            httpURLConnection.connect();
-            InputStream inputStream = httpURLConnection.getInputStream();
-            bufferedReader = new BufferedReader(new InputStreamReader(inputStream));
-            StringBuilder stringBuilder = new StringBuilder();
-            String line;
-            while ((line = bufferedReader.readLine()) != null) {
-                stringBuilder.append(line);
-                stringBuilder.append("\n");
-            }
-            if (stringBuilder.length() == 0) {
+            if (builder.length() == 0) {
+                // Stream was empty.  Exit without parsing.
                 return null;
             }
-            htmlSourceCode = stringBuilder.toString();
+
+            pageSource = builder.toString();
 
         } catch (IOException e) {
             e.printStackTrace();
+            return null;
         } finally {
-            if (httpURLConnection != null) {
-                httpURLConnection.disconnect();
+            // Close the connection and the buffered reader.
+            if (urlConnection != null) {
+                urlConnection.disconnect();
             }
-            if (bufferedReader != null) {
+            if (reader != null) {
                 try {
-                    bufferedReader.close();
+                    reader.close();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
         }
-        Log.d(LOG_TAG, htmlSourceCode);
-        return htmlSourceCode;
+
+        // Write the final JSON response to the log
+        Log.d(LOG_TAG, pageSource);
+
+        return pageSource;
     }
 }
